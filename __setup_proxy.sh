@@ -106,7 +106,7 @@ func_global_monitor() {
         func_set_proxy || { sleep 60; continue; }
         proxy_fail_count=0
         while true; do
-            sleep 60
+            sleep 180
             checker=$(printf "%s\n" $CHECKERS | shuf -n1)
             resp=$(curl -L --max-redirs 10 -s --max-time 30 "https://$checker" || true)
             if [ -n "$resp" ]; then
@@ -124,14 +124,15 @@ func_global_monitor() {
     done
 }
 
-CHECKERS="
-ifconfig.icu/ip
+CHECKERS="ifconfig.icu/ip
 ifconfig.me/ip
 ipecho.net/ip
 ipinfo.io/ip
 ipapi.co/ip
+ip.im
 eth0.me
 ip.tyk.nu
+a.ident.me
 ip-addr.es
 icanhazip.com
 api64.ipify.org
@@ -139,7 +140,9 @@ wtfismyip.com/text
 moanmyip.com/simple
 checkip.amazonaws.com
 whatismyip.akamai.com
-"
+jsonip.com
+httpbin.org/ip"
 
 func_net_admin
+
 func_global_monitor
