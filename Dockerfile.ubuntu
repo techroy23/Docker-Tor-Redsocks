@@ -5,6 +5,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gosu coreutils ca-certificates dos2unix \
   && rm -rf /var/lib/apt/lists/*
 
+COPY *.sh /app/
 RUN dos2unix /app/*.sh && chmod +x /app/*.sh
 
 RUN useradd -s /bin/bash toruser \
