@@ -5,6 +5,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gosu coreutils ca-certificates dos2unix \
   && rm -rf /var/lib/apt/lists/*
 
+WORKDIR /app
 COPY *.sh /app/
 RUN dos2unix /app/*.sh && chmod +x /app/*.sh
 
@@ -20,3 +21,4 @@ RUN echo "SocksPort 60000" > /etc/tor/torrc \
  && chown toruser:toruser /etc/tor/torrc
 
 ENTRYPOINT ["/bin/bash"]
+
