@@ -47,7 +47,7 @@ func_check_tor() {
     while true; do
         sleep 10
         checker=$(printf "%s\n" $CHECKERS | shuf -n1)
-        resp=$(curl -L --max-redirs 10 --socks5 localhost:60000 -s --max-time 30 "https://$checker" || true)
+        resp=$(curl -L --max-redirs 10 --socks5 localhost:60000 -s --max-time 30 "https://$checker" 2>/dev/null | tr -d '\n\r' || true)
         if [ -n "$resp" ]; then
             log "[INFO] TOR proxy is working: $resp (via $checker)"
             return 0
@@ -128,7 +128,7 @@ func_global_monitor() {
         while true; do
             sleep 180
             checker=$(printf "%s\n" $CHECKERS | shuf -n1)
-            resp=$(curl -L --max-redirs 10 -s --max-time 30 "https://$checker" || true)
+            resp=$(curl -L --max-redirs 10 -s --max-time 30 "https://$checker" 2>/dev/null | tr -d '\n\r' || true)
             if [ -n "$resp" ]; then
                 log "[GOOD] Global monitor check OK: $resp (via $checker)"
                 proxy_fail_count=0
