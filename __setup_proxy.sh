@@ -1,11 +1,10 @@
 #!/bin/bash
 set -e
+
+TOP_N="${TOP_N:-10}"
+
 log() {
-	echo "$(date '+%Y-%m-%d %H:%M:%S') "
-    echo "$(date '+%Y-%m-%d %H:%M:%S')>>>>>"
-	echo "$(date '+%Y-%m-%d %H:%M:%S') >>> An2Kin >>> $*"
-	echo "$(date '+%Y-%m-%d %H:%M:%S')>>>>>"
-	echo "$(date '+%Y-%m-%d %H:%M:%S') "
+    echo "[$(date '+%H:%M:%S')] $*"
 }
 
 func_net_admin() {
@@ -19,23 +18,42 @@ func_net_admin() {
 func_start_tor() {
     log "[INFO] Starting Tor as toruser..."
     pkill -f tor || true
+
+    COUNTRIES=$(/app/tornode.sh "$TOP_N") || COUNTRIES=""
+    log "[INFO] Using exit nodes: ${COUNTRIES:-default}"
+
+    SHOW_TOR_LOGS="$(echo "${SHOW_TOR_LOGS:-false}" | tr '[:upper:]' '[:lower:]')"
+
+    {
+        echo "SocksPort 60000"
+        if [ -n "$COUNTRIES" ]; then
+            echo "ExitNodes {$COUNTRIES}"
+            echo "StrictNodes 1"
+        fi
+        echo "DataDirectory /var/lib/tor"
+    } > /etc/tor/torrc
+    chown toruser:toruser /etc/tor/torrc
+
     cat /etc/tor/torrc
-    gosu toruser tor -f /etc/tor/torrc &
+
+    if [ "$SHOW_TOR_LOGS" = "true" ]; then
+        gosu toruser tor -f /etc/tor/torrc &
+    else
+        gosu toruser tor -f /etc/tor/torrc >/dev/null 2>&1 &
+    fi
     tor_pid=$!
 }
 
 func_check_tor() {
-    attempts=0
     while true; do
         sleep 10
-		checker=$(printf "%s\n" $CHECKERS | shuf -n1)
-		resp=$(curl -L --max-redirs 10 --socks5 localhost:60000 -s --max-time 30 "https://$checker" || true)
+        checker=$(printf "%s\n" $CHECKERS | shuf -n1)
+        resp=$(curl -L --max-redirs 10 --socks5 localhost:60000 -s --max-time 30 "https://$checker" || true)
         if [ -n "$resp" ]; then
             log "[INFO] TOR proxy is working: $resp (via $checker)"
             return 0
         else
-            attempts=$((attempts+1))
-            log "[WARN] Attempt $attempts: TOR proxy not ready yet, retrying..."
+            log "[WARN] TOR proxy not ready, retrying..."
         fi
     done
 }
@@ -43,21 +61,20 @@ func_check_tor() {
 setup_redsocks() {
     cat > /etc/redsocks.conf <<EOF
 base {
-  log_debug = off;
-  log_info = on;
-  log = "stderr";
-  daemon = off;
-  redirector = iptables;
+    log_debug = off;
+    log_info = on;
+    log = "stderr";
+    daemon = off;
+    redirector = iptables;
 }
 redsocks {
-  local_ip = 127.0.0.1;
-  local_port = 50000;
-  ip = 127.0.0.1;
-  port = 60000;
-  type = socks5;
+    local_ip = 127.0.0.1;
+    local_port = 50000;
+    ip = 127.0.0.1;
+    port = 60000;
+    type = socks5;
 }
 EOF
-	cat /etc/redsocks.conf
     log "[INFO] Redsocks config written"
 }
 
@@ -65,13 +82,13 @@ setup_iptables() {
     iptables -t nat -F
     iptables -t nat -A OUTPUT -m owner --uid-owner toruser -j RETURN
     iptables -t nat -A OUTPUT -p tcp -d 127.0.0.1 -j RETURN
-	iptables -t nat -A OUTPUT -p tcp --dport 53 -j RETURN
+    iptables -t nat -A OUTPUT -p tcp --dport 53 -j RETURN
     iptables -t nat -A OUTPUT -p tcp --dport 50000 -j RETURN
-	iptables -t nat -A OUTPUT -p tcp --dport 60000 -j RETURN
-	iptables -t nat -A OUTPUT -p udp -d 127.0.0.1 -j RETURN
-	iptables -t nat -A OUTPUT -p udp --dport 53 -j RETURN
+    iptables -t nat -A OUTPUT -p tcp --dport 60000 -j RETURN
+    iptables -t nat -A OUTPUT -p udp -d 127.0.0.1 -j RETURN
+    iptables -t nat -A OUTPUT -p udp --dport 53 -j RETURN
     iptables -t nat -A OUTPUT -p udp --dport 50000 -j RETURN
-	iptables -t nat -A OUTPUT -p udp --dport 60000 -j RETURN
+    iptables -t nat -A OUTPUT -p udp --dport 60000 -j RETURN
     iptables -t nat -A OUTPUT -p tcp -j REDIRECT --to-ports 50000
     log "[INFO] iptables rules applied"
 }
@@ -110,7 +127,7 @@ func_global_monitor() {
             checker=$(printf "%s\n" $CHECKERS | shuf -n1)
             resp=$(curl -L --max-redirs 10 -s --max-time 30 "https://$checker" || true)
             if [ -n "$resp" ]; then
-				log "[GOOD] Global monitor check OK: $resp (via $checker)"
+                log "[GOOD] Global monitor check OK: $resp (via $checker)"
                 proxy_fail_count=0
             else
                 proxy_fail_count=$((proxy_fail_count+1))
@@ -144,5 +161,4 @@ jsonip.com
 httpbin.org/ip"
 
 func_net_admin
-
 func_global_monitor

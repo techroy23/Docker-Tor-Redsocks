@@ -15,9 +15,6 @@ RUN adduser -D -s /bin/sh toruser \
 
 # Configure Tor
 RUN echo "SocksPort 60000" > /etc/tor/torrc \
- && echo "ExitNodes {us},{nl},{de},{se},{pl},{at}" >> /etc/tor/torrc \
- && echo "StrictNodes 1" >> /etc/tor/torrc \
- && echo "Log notice stdout" >> /etc/tor/torrc \
  && echo "DataDirectory /var/lib/tor" >> /etc/tor/torrc \
  && chown toruser:toruser /etc/tor/torrc
 
