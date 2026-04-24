@@ -2,6 +2,7 @@
 set -e
 
 TOP_N="${TOP_N:-10}"
+SHOW_LOGS="$(echo "${SHOW_LOGS:-false}" | tr '[:upper:]' '[:lower:]')"
 
 log() {
     echo "[$(date '+%H:%M:%S')] $*"
@@ -21,8 +22,6 @@ func_start_tor() {
 
     COUNTRIES=$(/app/tornode.sh "$TOP_N") || COUNTRIES=""
     log "[INFO] Using exit nodes: ${COUNTRIES:-default}"
-
-    SHOW_LOGS="$(echo "${SHOW_LOGS:-false}" | tr '[:upper:]' '[:lower:]')"
 
     {
         echo "SocksPort 60000"
@@ -99,7 +98,11 @@ func_set_proxy() {
     func_check_tor
     setup_redsocks
     setup_iptables
-    redsocks -c /etc/redsocks.conf &
+    if [ "$SHOW_LOGS" = "true" ]; then
+        redsocks -c /etc/redsocks.conf &
+    else
+        redsocks -c /etc/redsocks.conf >/dev/null 2>&1 &
+    fi
     redsocks_pid=$!
     sleep 5
     checker=$(printf "%s\n" $CHECKERS | shuf -n1)
