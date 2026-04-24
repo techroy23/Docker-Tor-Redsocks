@@ -10,6 +10,6 @@ fetch() {
         awk '{printf "%s%s", (NR>1?",":""), $2} END {print ""}'
 }
 
-fetch || wget -qO- "$URL" 2>/dev/null | \
+fetch || wget -qO- --user-agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" "$URL" 2>/dev/null | \
     tr ',' '\n' | grep '"country"' | cut -d'"' -f4 | sort | uniq -c | sort -rn | head -n "$TOP_N" | \
     awk '{printf "%s%s", (NR>1?",":""), $2} END {print ""}'
