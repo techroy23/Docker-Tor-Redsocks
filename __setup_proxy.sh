@@ -27,7 +27,7 @@ func_start_tor() {
     {
         echo "SocksPort 60000"
         if [ -n "$COUNTRIES" ]; then
-            echo "ExitNodes {$COUNTRIES}"
+            echo "ExitNodes $COUNTRIES"
             echo "StrictNodes 1"
         fi
         echo "DataDirectory /var/lib/tor"

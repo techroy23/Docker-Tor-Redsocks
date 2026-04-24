@@ -7,7 +7,7 @@ TOP_N="${1:-10}"
 UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
 
 parse() {
-    sort | uniq -c | sort -rn | head -n "$TOP_N" | awk '{printf "%s%s", (NR>1?",":""), $2} END {print ""}'
+    sort | uniq -c | sort -rn | head -n "$TOP_N" | awk '{printf "%s{%s}", (NR>1?",":""), $2} END {print ""}'
 }
 
 fetch_curl() {
