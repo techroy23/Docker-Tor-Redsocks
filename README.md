@@ -58,15 +58,15 @@ echo "Proxy ready!"
 | Variable | Default | Description |
 |:---------|:--------|:----------|
 | `TOP_N` | 10 | Number of countries to use |
-| `SHOW_TOR_LOGS` | false | Show Tor logs (true/false) |
+| `SHOW_LOGS` | false | Show Tor logs (true/false) |
 
 ## Examples
 ```bash
 # Use top 3 countries
 docker run -e TOP_N=3 yourimage
 
-# Show Tor logs
-docker run -e SHOW_TOR_LOGS=true yourimage
+# Show logs
+docker run -e SHOW_LOGS=true yourimage
 
 # Both
 docker run -e TOP_N=3 -e SHOW_TOR_LOGS=true yourimage

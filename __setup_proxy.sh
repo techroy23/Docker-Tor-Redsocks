@@ -22,7 +22,7 @@ func_start_tor() {
     COUNTRIES=$(/app/tornode.sh "$TOP_N") || COUNTRIES=""
     log "[INFO] Using exit nodes: ${COUNTRIES:-default}"
 
-    SHOW_TOR_LOGS="$(echo "${SHOW_TOR_LOGS:-false}" | tr '[:upper:]' '[:lower:]')"
+    SHOW_LOGS="$(echo "${SHOW_LOGS:-false}" | tr '[:upper:]' '[:lower:]')"
 
     {
         echo "SocksPort 60000"
@@ -36,7 +36,7 @@ func_start_tor() {
 
     cat /etc/tor/torrc
 
-    if [ "$SHOW_TOR_LOGS" = "true" ]; then
+    if [ "$SHOW_LOGS" = "true" ]; then
         gosu toruser tor -f /etc/tor/torrc &
     else
         gosu toruser tor -f /etc/tor/torrc >/dev/null 2>&1 &
