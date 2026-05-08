@@ -45,7 +45,8 @@ func_start_tor() {
 
 func_check_tor() {
     while true; do
-        sleep 10
+        log "[INFO] Sleeping for 60secs"
+        sleep 60
         checker=$(printf "%s\n" $CHECKERS | shuf -n1)
         resp=$(curl -L --max-redirs 10 --socks5 localhost:60000 -s --max-time 30 "https://$checker" 2>/dev/null | tr -d '\n\r' || true)
         if [ -n "$resp" ]; then
