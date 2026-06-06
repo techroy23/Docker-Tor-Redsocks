@@ -2,7 +2,7 @@ FROM alpine:latest
 
 RUN apk update && apk add --no-cache \
     bash curl wget iptables redsocks tor \
-    shadow gosu coreutils ca-certificates dos2unix \
+    shadow gosu coreutils ca-certificates dos2unix socat \
   && rm -rf /var/cache/apk/*
 
 WORKDIR /app
@@ -14,8 +14,11 @@ RUN adduser -D -s /bin/sh toruser \
  && chown -R toruser:toruser /var/lib/tor /var/log/tor /etc/tor
 
 # Configure Tor
-RUN echo "SocksPort 60000" > /etc/tor/torrc \
+RUN echo "SocksPort 40000" > /etc/tor/torrc \
  && echo "DataDirectory /var/lib/tor" >> /etc/tor/torrc \
  && chown toruser:toruser /etc/tor/torrc
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
+  CMD curl -s --socks5 127.0.0.1:40000 https://checkip.amazonaws.com >/dev/null 2>&1 || exit 1
 
 ENTRYPOINT ["/bin/bash"]

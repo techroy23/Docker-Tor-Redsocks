@@ -10,21 +10,21 @@ log() {
 
 func_net_admin() {
     if ! iptables -L >/dev/null 2>&1; then
-        log "[ERROR] iptables not usable. Missing NET_ADMIN/NET_RAW or root privileges."
-        log "[INFO] Run container with: --cap-add=NET_ADMIN --cap-add=NET_RAW --sysctl net.ipv4.ip_forward=1"
+        log "[ERROR] Cannot use iptables — missing required permissions."
+        log "[INFO] Fix: add --cap-add=NET_ADMIN --cap-add=NET_RAW --sysctl net.ipv4.ip_forward=1 to your docker run command"
         exit 1
     fi
 }
 
 func_start_tor() {
-    log "[INFO] Starting Tor as toruser..."
+    log "[INFO] Starting Tor in the background..."
     pkill -f tor || true
 
     COUNTRIES=$(/app/tornode.sh "$TOP_N") || COUNTRIES=""
     log "[INFO] Using exit nodes: ${COUNTRIES:-default}"
 
     {
-        echo "SocksPort 60000"
+        echo "SocksPort 40000"
         if [ -n "$COUNTRIES" ]; then
             echo "ExitNodes $COUNTRIES"
             echo "StrictNodes 0"
@@ -44,17 +44,17 @@ func_start_tor() {
 }
 
 func_check_tor() {
-    log "[INFO] Sleeping for 60secs"
+    log "[INFO] Giving Tor 60 seconds to boot up..."
     sleep 60
     while true; do
         sleep 10
         checker=$(printf "%s\n" $CHECKERS | shuf -n1)
-        resp=$(curl -L --max-redirs 10 --socks5 localhost:60000 -s --max-time 30 "https://$checker" 2>/dev/null | tr -d '\n\r' || true)
+        resp=$(curl -L --max-redirs 10 --socks5 localhost:40000 -s --max-time 30 "https://$checker" 2>/dev/null | tr -d '\n\r' || true)
         if [ -n "$resp" ]; then
-            log "[INFO] TOR proxy is working: $resp (via $checker)"
+            log "[OK] Tor proxy is working! Your IP: $resp (via $checker)"
             return 0
         else
-            log "[WARN] TOR proxy not ready, retrying..."
+            log "[WAIT] Tor proxy not ready yet, checking again in 10 seconds..."
         fi
     done
 }
@@ -72,11 +72,11 @@ redsocks {
     local_ip = 127.0.0.1;
     local_port = 50000;
     ip = 127.0.0.1;
-    port = 60000;
+    port = 40000;
     type = socks5;
 }
 EOF
-    log "[INFO] Redsocks config written"
+    log "[OK] Redsocks configuration saved to /etc/redsocks.conf"
 }
 
 setup_iptables() {
@@ -85,19 +85,26 @@ setup_iptables() {
     iptables -t nat -A OUTPUT -p tcp -d 127.0.0.1 -j RETURN
     iptables -t nat -A OUTPUT -p tcp --dport 53 -j RETURN
     iptables -t nat -A OUTPUT -p tcp --dport 50000 -j RETURN
-    iptables -t nat -A OUTPUT -p tcp --dport 60000 -j RETURN
+    iptables -t nat -A OUTPUT -p tcp --dport 40000 -j RETURN
     iptables -t nat -A OUTPUT -p udp -d 127.0.0.1 -j RETURN
     iptables -t nat -A OUTPUT -p udp --dport 53 -j RETURN
     iptables -t nat -A OUTPUT -p udp --dport 50000 -j RETURN
-    iptables -t nat -A OUTPUT -p udp --dport 60000 -j RETURN
+    iptables -t nat -A OUTPUT -p udp --dport 40000 -j RETURN
     iptables -t nat -A OUTPUT -p tcp -j REDIRECT --to-ports 50000
-    log "[INFO] iptables rules applied"
+    log "[OK] iptables rules applied — all outbound traffic will go through Tor"
+}
+
+func_expose_tor() {
+    log "[EXPOSE] Opening Tor SOCKS5 on 0.0.0.0:40001 for external access..."
+    socat TCP-LISTEN:40001,fork,reuseaddr TCP:127.0.0.1:40000 &
+    log "[OK] Tor SOCKS5 now available at 0.0.0.0:40001"
 }
 
 func_set_proxy() {
-    log "[INFO] Initializing proxy stack..."
+    log "[START] Setting up full proxy stack (Tor + Redsocks + iptables)..."
     func_start_tor
     func_check_tor
+    func_expose_tor
     setup_redsocks
     setup_iptables
     if [ "$SHOW_LOGS" = "true" ]; then
@@ -110,20 +117,21 @@ func_set_proxy() {
     checker=$(printf "%s\n" $CHECKERS | shuf -n1)
     resp=$(curl -L --max-redirs 10 -s --max-time 30 "https://$checker" || true)
     if [ -n "$resp" ]; then
-        log "[INFO] Global proxy via redsocks is working: $resp (via $checker)"
+        log "[OK] Global proxy is working! Your IP: $resp (checked via $checker)"
         touch /tmp/redsocks.ready
         return 0
     else
-        log "[ERROR] Global proxy test failed"
+        log "[FAIL] Global proxy test failed — no internet through the proxy"
         return 1
     fi
 }
 
 func_global_monitor() {
     while true; do
-        log "[INFO] Cleaning up Tor and Redsocks..."
+        log "[RESTART] Shutting down old Tor and Redsocks processes..."
         pkill -f tor || true
         pkill -f redsocks || true
+        pkill -f socat || true
         rm -f /tmp/redsocks.ready || true
         func_set_proxy || { sleep 60; continue; }
         proxy_fail_count=0
@@ -132,38 +140,86 @@ func_global_monitor() {
             checker=$(printf "%s\n" $CHECKERS | shuf -n1)
             resp=$(curl -L --max-redirs 10 -s --max-time 30 "https://$checker" 2>/dev/null | tr -d '\n\r' || true)
             if [ -n "$resp" ]; then
-                log "[GOOD] Global monitor check OK: $resp (via $checker)"
+                log "[OK] Internet check passed — your IP: $resp (via $checker)"
                 proxy_fail_count=0
             else
                 proxy_fail_count=$((proxy_fail_count+1))
-                log "[ERROR] Proxy failure detected (consecutive fails: $proxy_fail_count)"
+                log "[WARN] Internet check failed (${proxy_fail_count}/3 failures)"
             fi
             if [ $proxy_fail_count -ge 3 ]; then
-                log "[CRITICAL] Proxy failed 3 times in a row, restarting full stack..."
+                log "[RESTART] 3 internet checks failed — restarting the whole proxy stack..."
                 break
             fi
         done
     done
 }
 
-CHECKERS="ifconfig.icu/ip
-ifconfig.me/ip
-ipecho.net/ip
-ipinfo.io/ip
-ipapi.co/ip
-ip.im
-eth0.me
-ip.tyk.nu
+CHECKERS="4.ipwho.de/ip
+4.myip.is
+6.ident.me
+6.myip.is
 a.ident.me
-ip-addr.es
-icanhazip.com
+api.getpublicip.com/ip
+api.ipify.org
+api.iplocation.net/?cmd=get-ip
+api.seeip.org
 api64.ipify.org
-wtfismyip.com/text
-moanmyip.com/simple
 checkip.amazonaws.com
-whatismyip.akamai.com
+checkip.ca
+checkip.synology.com
+dafuqismyip.com
+ds-whoami.kag2d.com
+eth0.me
+httpbin.org/ip
+icanhazip.com
+ident.me
+ifconfig.icu/ip
+ifconfig.info
+ifconfig.io
+ifconfig.me/ip
+inet-ip.info
+ip-addr.es
+ip-echo.ripe.net
+ip.csis.dk
+ip.guide
+ip.im
+ip.liquidweb.com
+ip.me
+ip.tyk.nu
+ip6.me/api
+ipaddress.ai
+ipapi.co/ip
+ipconfig.io
+ipecho.net/ip
+iphorse.com/json
+ipinfo.io/ip
+ipleak.net
+ipquail.com
+ipunicorn.com
+ipv4.getpublicip.com/ip
+ipv6.icanhazip.com
+ipv6.ip.sb
+ipseeker.io
+json.myip.wtf
 jsonip.com
-httpbin.org/ip"
+l2.io/ip
+moanmyip.com/simple
+my.ip.fi
+myexternalip.com/raw
+myip.dk
+myip.dnsomatic.com
+myip.wtf/text
+pub-ip.com
+simplesniff.com/ip
+sshmyip.com
+telnetmyip.com
+v4.ident.me
+v6.ident.me
+wgetip.com
+whatismyip.akamai.com
+whatismyip.help
+wtfismyip.com/text
+yourip.app/raw"
 
 func_net_admin
 func_global_monitor
