@@ -21,6 +21,7 @@ func_start_tor() {
 
     {
         echo "SocksPort 40000"
+        echo "DataDirectory /var/lib/tor"
     } > /etc/tor/torrc
     chown toruser:toruser /etc/tor/torrc
 
