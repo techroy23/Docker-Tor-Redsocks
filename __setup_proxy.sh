@@ -1,7 +1,6 @@
 #!/bin/bash
 set -e
 
-TOP_N="${TOP_N:-10}"
 SHOW_LOGS="$(echo "${SHOW_LOGS:-false}" | tr '[:upper:]' '[:lower:]')"
 
 log() {
@@ -20,16 +19,8 @@ func_start_tor() {
     log "[INFO] Starting Tor in the background..."
     pkill -f tor || true
 
-    COUNTRIES=$(/app/tornode.sh "$TOP_N") || COUNTRIES=""
-    log "[INFO] Using exit nodes: ${COUNTRIES:-default}"
-
     {
         echo "SocksPort 40000"
-        if [ -n "$COUNTRIES" ]; then
-            echo "ExitNodes $COUNTRIES"
-            echo "StrictNodes 0"
-        fi
-        echo "DataDirectory /var/lib/tor"
     } > /etc/tor/torrc
     chown toruser:toruser /etc/tor/torrc
 

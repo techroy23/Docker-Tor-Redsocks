@@ -3,8 +3,7 @@ A Docker base image that sets up a transparent proxy stack using Tor and Redsock
 
 ## Features
 - Alpine and Ubuntu variants (`Dockerfile.alpine`, `Dockerfile.ubuntu`)
-- Dynamic exit node selection - fetches top 10 countries from live Tor network data
-- Failsafe: uses default Tor exits if tornode.sh fails
+- Uses default Tor exit nodes (no country restriction)
 - Redsocks for transparent TCP proxying
 - iptables rules redirect all outbound traffic through Tor
 - Automatic monitoring and restart on failure
@@ -13,7 +12,6 @@ A Docker base image that sets up a transparent proxy stack using Tor and Redsock
 ## Files
 | File | Description |
 |:-----|:----------|
-| `tornode.sh` | Fetches top N countries from Tor exit nodes |
 | `__setup_proxy.sh` | Proxy setup and monitoring script |
 | `Dockerfile.alpine` | Lightweight Alpine-based image |
 | `Dockerfile.ubuntu` | Ubuntu-based image |
@@ -57,22 +55,15 @@ echo "Proxy ready!"
 ## Environment Variables
 | Variable | Default | Description |
 |:---------|:--------|:----------|
-| `TOP_N` | 10 | Number of countries to use |
 | `SHOW_LOGS` | false | Show Tor logs (true/false) |
 
-## Examples
+## Example
 ```bash
-# Use top 3 countries
-docker run -e TOP_N=3 yourimage
-
-# Show logs
+# Show Tor logs
 docker run -e SHOW_LOGS=true yourimage
-
-# Both
-docker run -e TOP_N=3 -e SHOW_TOR_LOGS=true yourimage
 ```
 
 ## Notes
 - Requires `NET_ADMIN` and `NET_RAW` capabilities
 - Tor runs as dedicated `toruser`
-- If tornode.sh fails, Tor uses its default global exit nodes
+- Tor uses its default exit nodes (no country restriction)
