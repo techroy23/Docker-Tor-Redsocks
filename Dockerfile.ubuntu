@@ -18,7 +18,7 @@ RUN echo "SocksPort 40000" > /etc/tor/torrc \
  && chown toruser:toruser /etc/tor/torrc
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
-  CMD timeout 3 bash -c 'echo >/dev/tcp/127.0.0.1/1080' 2>/dev/null || exit 1
+  CMD timeout 3 bash -c 'echo >/dev/tcp/127.0.0.1/40000' 2>/dev/null || exit 1
 
 ENTRYPOINT ["/bin/bash"]
 
